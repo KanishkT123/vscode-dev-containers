@@ -310,6 +310,7 @@ require('yargs')
             })
     }, patchCommand)
     .command('copy-library-scripts', 'copy files from script-library folder into appropriate definitions', () => {}, copyLibraryScriptsCommand)
+    .command('copy-test-utils', 'copy test-utilsh.sh from script-library/container-features folder into appropriate definitions', () => {}, copyTestUtilsCommand)
     .demandCommand()
     .help()
     .argv;
@@ -353,6 +354,17 @@ function copyLibraryScriptsCommand() {
     prep.copyLibraryScriptsForAllDefinitions()
         .catch((reason) => {
             console.error(`(!) Failed to copy library scripts to definitions  - ${reason}`);
+            if(reason.stack) {
+                console.error(`    ${reason.stack}`);
+            }
+            process.exit(1);
+        });
+}
+
+function copyTestUtilsCommand() {
+    prep.copyTestUtilsScriptForAllDefinitions()
+        .catch((reason) => {
+            console.error(`(!) Failed to copy test-utils.sh to definitions  - ${reason}`);
             if(reason.stack) {
                 console.error(`    ${reason.stack}`);
             }

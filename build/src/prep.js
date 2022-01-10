@@ -23,6 +23,8 @@ const stubPromises = {
 const dockerFilePreamble = configUtils.getConfig('dockerFilePreamble');
 const scriptLibraryPathInRepo = configUtils.getConfig('scriptLibraryPathInRepo');
 const scriptLibraryFolderNameInDefinition = configUtils.getConfig('scriptLibraryFolderNameInDefinition');
+const testUtilsFilePathInRepo = configUtils.getConfig('testUtilsFilePath');
+const testUtilsFilePathInDefinition = configUtils.getConfig('testUtilsFilePathInDefinition')
 
 const historyUrlPrefix = configUtils.getConfig('historyUrlPrefix');
 const repositoryUrl = configUtils.getConfig('repositoryUrl');
@@ -56,6 +58,7 @@ async function prepDockerFile(devContainerDockerfilePath, definitionId, repo, re
 
     // Copy any scripts from the script library, add meta.env into the appropriate definition specific folder
     await copyLibraryScriptsForDefinition(devContainerJsonPath, isForBuild, prepResult.meta);
+    await copyTestUtilsScript(devContainerJsonPath);
 
     if (isForBuild) {
         // If building, update FROM to target registry and version if definition has a parent
@@ -254,12 +257,42 @@ async function copyLibraryScriptsForDefinition(definitionDevContainerJsonFolder,
     }
 }
 
+// Copy contents of script library to folder, meta.env file if specified and building
+async function copyTestUtilsScript(definitionDevContainerJsonFolder, isForBuild, meta) {
+    const testUtilsFolder = path.join(definitionDevContainerJsonFolder, testUtilsFilePathInDefinition);
+    if (await asyncUtils.exists(testUtilsFolder)) {
+        await asyncUtils.forEach(await asyncUtils.readdir(testUtilsFolder), async (script) => {
+            // Only copy files that end in .sh
+            if (path.basename(script) !== 'test-utils.sh') {
+                return;
+            }
+            const possibleScriptSource = path.join(__dirname, '..', '..', scriptLibraryPathInRepo, testUtilsFilePathInRepo);
+            if (await asyncUtils.exists(possibleScriptSource)) {
+                const targetScriptPath = path.join(testUtilsFolder, script);
+                console.log(`(*) Copying ${script} to ${testUtilsFolder}...`);
+                await asyncUtils.copyFile(possibleScriptSource, targetScriptPath);
+            }
+        });
+    } else {
+        console.log(`Could not find ${testUtilsFolder}. There may not be a test-utils or test in this directory.`);
+
+    }
+}
+
 // For CI of the script library folder
 async function copyLibraryScriptsForAllDefinitions() {
     const devcontainerFolders = glob.sync(`${path.resolve(__dirname, '..', '..')}/+(containers|container-templates|repository-containers)/**/.devcontainer`);
     await asyncUtils.forEach(devcontainerFolders, async (folder) => {
         console.log(`(*) Checking ${path.basename(path.resolve(folder, '..'))} for ${scriptLibraryFolderNameInDefinition} folder...`);
         await copyLibraryScriptsForDefinition(folder);
+    });
+}
+
+async function copyTestUtilsScriptForAllDefinitions() {
+    const devcontainerFolders = glob.sync(`${path.resolve(__dirname, '..', '..')}/+(containers|container-templates|repository-containers)/**/.devcontainer`);
+    await asyncUtils.forEach(devcontainerFolders, async (folder) => {
+        console.log(`(*) Checking ${path.basename(path.resolve(folder, '..'))} for ${scriptLibraryFolderNameInDefinition} folder...`);
+        await copyTestUtilsScript(folder);
     });
 }
 
@@ -273,6 +306,7 @@ module.exports = {
     updateConfigForRelease: updateConfigForRelease,
     prepDockerFile: prepDockerFile,
     copyLibraryScriptsForAllDefinitions: copyLibraryScriptsForAllDefinitions,
+    copyTestUtilsScriptForAllDefinitions: copyTestUtilsScriptForAllDefinitions,
     updateScriptSourcesInDockerfile: updateScriptSourcesInDockerfile,
     updateAllScriptSourcesInRepo: updateAllScriptSourcesInRepo
 }
